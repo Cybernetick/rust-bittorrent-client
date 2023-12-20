@@ -1,37 +1,29 @@
 use serde_json;
 use std::env;
-use regex::{Captures, Regex};
+use serde_json::Number;
 
 // Available if you need it!
 // use serde_bencode
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
-    let reg = Regex::new("(?<length>[0-9]+):(?<value>.+)$").expect("failed to compile RegEx pattern");
-
-    let captures = reg.captures(encoded_value);
-    return match captures {
-        Some(caps) => {
-            let length = usize::from_str_radix(&caps["length"], 10).unwrap_or(0);
-            let value = &caps["value"];
+    let delimiter = encoded_value.find(':');
+    return match delimiter {
+        Some(delimited_safe) => {
+            let key = encoded_value[..delimited_safe].parse::<usize>().expect("unable to parse key as digit");
+            let value = &encoded_value[delimited_safe + 1..=delimited_safe + key];
             serde_json::Value::String(String::from(value))
         }
         None => {
-            serde_json::Value::String(String::new())
+            if encoded_value.starts_with('i') {
+                let delimiter = encoded_value.find('e').expect("supplied string starts like integer, but missing enclosing symbol");
+                let parsed_number = encoded_value[1..delimiter].parse::<i64>().expect("unable to parse integer");
+                serde_json::Value::Number(Number::from(parsed_number))
+            } else {
+                panic!("unknown input {}", encoded_value)
+            }
         }
-    }
-
-    // If encoded_value starts with a digit, it's a number
-    // if encoded_value.chars().next().unwrap().is_digit(10) {
-    //     // Example: "5:hello" -> "hello"
-    //     let colon_index = encoded_value.find(':').unwrap();
-    //     let number_string = &encoded_value[..colon_index];
-    //     let number = number_string.parse::<i64>().unwrap();
-    //     let string = &encoded_value[colon_index + 1..colon_index + 1 + number as usize];
-
-    // } else {
-    //     panic!("Unhandled encoded value: {}", encoded_value)
-    // }
+    };
 }
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
