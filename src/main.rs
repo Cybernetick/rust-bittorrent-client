@@ -1,6 +1,6 @@
 use serde_json;
 use std::{env, vec};
-use serde_json::Number;
+use serde_json::{Number};
 
 // Available if you need it!
 // use serde_bencode
@@ -35,6 +35,18 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
             }
 
             (serde_json::Value::Array(total), cursor + 1)
+        }
+        'd' => {
+            let mut result = serde_json::Map::new();
+            let mut cursor: usize = 1;
+            while encoded_string.chars().nth(cursor).unwrap() != 'e' {
+                let (key, size) = decode_bencoded_string(&encoded_string[cursor..encoded_string.len()]);
+                cursor += size;
+                let (value, size) = decode_bencoded_string(&encoded_string[cursor..encoded_string.len()]);
+                cursor += size;
+                result.insert(key.as_str().expect("cannot unwrap key").to_string(), value);
+            }
+            (result.into(), cursor +1)
         }
         'e' => {
             (serde_json::Value::Null, 0)
