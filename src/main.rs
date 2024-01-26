@@ -1,9 +1,11 @@
+mod metainfo;
+
 use serde_json;
 use std::{env, vec};
+use std::fs::File;
+use std::io::{BufRead, Read};
+use std::path::{Path, PathBuf};
 use serde_json::{Number};
-
-// Available if you need it!
-// use serde_bencode
 
 fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     return match encoded_string.chars().nth(0).expect("fail to create iterator over input string") {
@@ -57,22 +59,47 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     };
 }
 
-// Usage: your_bittorrent.sh decode "<encoded_value>"
+fn read_sample_file(mut file: &File) {
+    let mut file_content: Vec<u8> = vec![];
+    match file.read_to_end(&mut file_content) {
+        Ok(size) => {
+            let (result, count) = decode_bencoded_string(String::from_utf8_lossy(file_content.as_slice()).as_ref());
+        }
+        Err(body) => {
+            panic!("error happended while reading file: {}", body);
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        let response = decode_bencoded_string("l5:helloi52ee");
-        println!("{}", response.0);
-        return;
-    }
 
     let command = &args[1];
-
-    if command == "decode" {
-        let encoded_value = &args[2];
-        let decoded_value = decode_bencoded_string(encoded_value);
-        println!("{}", decoded_value.0.to_string());
-    } else {
-        println!("unknown command: {}", args[1])
+    match command.as_str() {
+        "decode" => {
+            let encoded_value = &args[2];
+            let decoded_value = decode_bencoded_string(encoded_value);
+            println!("{}", decoded_value.0.to_string());
+        }
+        "info" => {
+            let mut path = if env::args().any(|item| item == "--directory") {
+                PathBuf::from(env::args().last().unwrap())
+            } else {
+                env::current_dir().unwrap_or(PathBuf::new())
+            };
+            path = path.join(Path::new(&args[2]));
+            let mut file = File::open(path);
+            match file {
+                Ok(actual) => {
+                    read_sample_file(&actual);
+                }
+                Err(err) => {
+                    panic!("error opening file - {}", err)
+                }
+            }
+        }
+        _ => {
+            panic!("unknown command provided: {}", command)
+        }
     }
 }
