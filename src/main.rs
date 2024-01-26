@@ -1,11 +1,13 @@
-mod metainfo;
-
-use serde_json;
 use std::{env, vec};
 use std::fs::File;
-use std::io::{BufRead, Read};
+use std::io::{Read};
 use std::path::{Path, PathBuf};
-use serde_json::{Number};
+use serde_json;
+use serde_json::Number;
+
+use crate::metainfo::Meta;
+
+mod metainfo;
 
 fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     return match encoded_string.chars().nth(0).expect("fail to create iterator over input string") {
@@ -22,8 +24,21 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
                 }
                 Some(delimiter_safe) => {
                     let key = encoded_string[..delimiter_safe].parse::<usize>().expect("unable to parse key as digit");
-                    let value = &encoded_string[delimiter_safe + 1..=delimiter_safe + key];
-                    (serde_json::Value::String(String::from(value)), (delimiter_safe + value.len() + 1))
+                    let mut bytes: Vec<u8> = vec![];
+                    let mut size = 0;
+                    //iterating over chars since the "pieces" key contains non-utf8 characters, so we cannot convert result into String right away.
+                    //non-utf8 characters have different size, so need to pay attention to char_indices value when iterating and counting offset of "handled" string
+                    let _ = &encoded_string[delimiter_safe + 1..].char_indices().take(key).for_each(|item| {
+                        bytes.push(item.1 as u8);
+                        size = item.0
+                    });
+                    size += 1;
+                    let safe_string = String::from_utf8(bytes.clone());
+                    return match safe_string {
+                        Ok(formatted) => { (serde_json::Value::String(formatted), (delimiter_safe + size + 1))  }
+                        Err(_) => { (serde_json::Value::from(bytes), (delimiter_safe + size + 1)) }
+                    }
+
                 }
             }
         }
@@ -41,7 +56,7 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
         'd' => {
             let mut result = serde_json::Map::new();
             let mut cursor: usize = 1;
-            while encoded_string.chars().nth(cursor).unwrap() != 'e' {
+            while encoded_string.chars().nth(cursor).is_some() && encoded_string.chars().nth(cursor).unwrap() != 'e' {
                 let (key, size) = decode_bencoded_string(&encoded_string[cursor..encoded_string.len()]);
                 cursor += size;
                 let (value, size) = decode_bencoded_string(&encoded_string[cursor..encoded_string.len()]);
@@ -62,8 +77,26 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
 fn read_sample_file(mut file: &File) {
     let mut file_content: Vec<u8> = vec![];
     match file.read_to_end(&mut file_content) {
-        Ok(size) => {
-            let (result, count) = decode_bencoded_string(String::from_utf8_lossy(file_content.as_slice()).as_ref());
+        Ok(_) => {
+            eprintln!("file content is {:?}", String::from_utf8_lossy(file_content.as_slice()));
+            let file_parsed = String::from_utf8(file_content.clone());
+            match file_parsed {
+                Ok(safe) => {
+                    let (result, _count) = decode_bencoded_string(&safe);
+                    let metainfo = Meta::from(&result);
+                    println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
+                }
+                Err(err) => {
+                    let valid_limit = err.utf8_error().valid_up_to();
+                    let valid_string = String::from_utf8_lossy(&file_content[0..valid_limit]);
+                    let (result, _count) = decode_bencoded_string(&valid_string);
+                    let metainfo = Meta::from(&result);
+                    println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
+                }
+            }
+            // let (result, _count) = decode_bencoded_string(String::from_utf8_lossy(file_content.as_slice()).as_ref());
+            // let metainfo = Meta::from(&result);
+            // println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
         }
         Err(body) => {
             panic!("error happended while reading file: {}", body);
@@ -88,7 +121,7 @@ fn main() {
                 env::current_dir().unwrap_or(PathBuf::new())
             };
             path = path.join(Path::new(&args[2]));
-            let mut file = File::open(path);
+            let file = File::open(path);
             match file {
                 Ok(actual) => {
                     read_sample_file(&actual);
