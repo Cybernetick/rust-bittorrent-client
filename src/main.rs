@@ -1,10 +1,11 @@
 use std::{env, vec};
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{Read};
 use std::path::{Path, PathBuf};
 use serde_json;
 use serde_json::Number;
-
+use sha1::{Sha1, Digest};
 use crate::metainfo::Meta;
 
 mod metainfo;
@@ -78,25 +79,52 @@ fn read_sample_file(mut file: &File) {
     let mut file_content: Vec<u8> = vec![];
     match file.read_to_end(&mut file_content) {
         Ok(_) => {
-            eprintln!("file content is {:?}", String::from_utf8_lossy(file_content.as_slice()));
-            let file_parsed = String::from_utf8(file_content.clone());
+            let file_parsed = core::str::from_utf8(file_content.as_slice());
             match file_parsed {
                 Ok(safe) => {
                     let (result, _count) = decode_bencoded_string(&safe);
                     let metainfo = Meta::from(&result);
-                    println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
+                    println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
+                    let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
+                    match encoded {
+                        Ok(bytes_array) => {
+                            let mut digest = Sha1::new();
+                            digest.update(bytes_array);
+                            let result = digest.finalize();
+                            println!("Info Hash: {}", hex::encode(result))
+                        }
+                        Err(_) => {}
+                    }
                 }
                 Err(err) => {
-                    let valid_limit = err.utf8_error().valid_up_to();
-                    let valid_string = String::from_utf8_lossy(&file_content[0..valid_limit]);
-                    let (result, _count) = decode_bencoded_string(&valid_string);
-                    let metainfo = Meta::from(&result);
-                    println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
+                    let limit_of_valid_utf8string = err.valid_up_to();
+                    let file_parsed = core::str::from_utf8(&file_content.as_slice()[0..limit_of_valid_utf8string]);
+
+                    match file_parsed {
+                        Ok(safe) => {
+                            let (result, _count) = decode_bencoded_string(&safe);
+                            let mut metainfo = Meta::from(&result);
+                            metainfo.info.pieces = file_content[limit_of_valid_utf8string..].to_vec();
+                            println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
+                            let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
+                            match encoded {
+                                Ok(bytes_array) => {
+                                    let mut digest = Sha1::new();
+                                    digest.update(bytes_array);
+                                    let result = digest.finalize();
+                                    println!("Info Hash: {}", hex::encode(result))
+                                }
+                                Err(_) => {}
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("dead {}", err)
+                        }
+                    }
+
+                    eprintln!("error parsing file {}", err)
                 }
             }
-            // let (result, _count) = decode_bencoded_string(String::from_utf8_lossy(file_content.as_slice()).as_ref());
-            // let metainfo = Meta::from(&result);
-            // println!("Tracker URL: {}\nLength: {}", metainfo.announce, metainfo.info.length)
         }
         Err(body) => {
             panic!("error happended while reading file: {}", body);

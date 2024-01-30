@@ -1,6 +1,6 @@
 #![allow(unused_variables, dead_code)]
 use std::fmt::{Debug, Display, Formatter};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct Meta {
@@ -8,12 +8,12 @@ pub struct Meta {
     pub info: Info
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Info {
     pub length: usize,
     pub name: String,
     #[serde(rename= "piece length")] pub piece_length: usize,
-    //TODO pieces: Vec<u8>
+    pub pieces: Vec<u8>
 }
 
 impl Meta {
@@ -40,7 +40,7 @@ impl Info {
             length,
             name,
             piece_length: pieces_length,
-            //TODO pieces: Vec::from(pieces),
+            pieces: Vec::from(pieces),
         }
     }
 }
