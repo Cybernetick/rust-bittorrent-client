@@ -83,45 +83,12 @@ fn read_sample_file(mut file: &File) {
             match file_parsed {
                 Ok(safe) => {
                     let (result, _count) = decode_bencoded_string(&safe);
-                    let metainfo = Meta::from(&result);
-                    println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
-                    let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
-                    match encoded {
-                        Ok(bytes_array) => {
-                            let mut digest = Sha1::new();
-                            digest.update(bytes_array);
-                            let result = digest.finalize();
-                            println!("Info Hash: {}", hex::encode(result))
-                        }
-                        Err(_) => {}
-                    }
+                    parse_file(result)
                 }
                 Err(err) => {
-                    let limit_of_valid_utf8string = err.valid_up_to();
-                    let file_parsed = core::str::from_utf8(&file_content.as_slice()[0..limit_of_valid_utf8string]);
-
-                    match file_parsed {
-                        Ok(safe) => {
-                            let (result, _count) = decode_bencoded_string(&safe);
-                            let mut metainfo = Meta::from(&result);
-                            metainfo.info.pieces = file_content[limit_of_valid_utf8string..].to_vec();
-                            println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
-                            let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
-                            match encoded {
-                                Ok(bytes_array) => {
-                                    let mut digest = Sha1::new();
-                                    digest.update(bytes_array);
-                                    let result = digest.finalize();
-                                    println!("Info Hash: {}", hex::encode(result))
-                                }
-                                Err(_) => {}
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("dead {}", err)
-                        }
-                    }
-
+                    let limit = err.valid_up_to();
+                    let result = decode_bencoded_string(core::str::from_utf8(&file_content[..limit]).unwrap());
+                    println!("result is {}", result.0);
                     eprintln!("error parsing file {}", err)
                 }
             }
@@ -129,6 +96,21 @@ fn read_sample_file(mut file: &File) {
         Err(body) => {
             panic!("error happended while reading file: {}", body);
         }
+    }
+}
+
+fn parse_file(input_string: serde_json::Value){
+    let metainfo = Meta::from(&input_string);
+    println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
+    let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
+    match encoded {
+        Ok(bytes_array) => {
+            let mut digest = Sha1::new();
+            digest.update(bytes_array);
+            let result = digest.finalize();
+            println!("Info Hash: {}", hex::encode(result))
+        }
+        Err(_) => {}
     }
 }
 
