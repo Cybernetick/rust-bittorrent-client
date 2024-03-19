@@ -7,8 +7,9 @@ use anyhow::Context;
 use serde::de::Error;
 use serde_json;
 use serde_json::Number;
-use sha1::Digest;
+use sha1::{Digest, Sha1};
 use clap::Parser;
+use serde::de::Unexpected::Str;
 use crate::metainfo::Meta;
 
 mod metainfo;
@@ -85,6 +86,13 @@ fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
     }
 }
 
+fn calculate_info_hash(info: &metainfo::Info) -> String {
+    let encoded = serde_bencode::to_bytes(info).expect("failed to serialize info");
+
+    let output = Sha1::digest(&encoded);
+    base16::encode_lower(&output)
+}
+
 fn main() {
     let formatted = args::Args::parse();
     match &formatted.command {
@@ -102,7 +110,8 @@ fn main() {
             let result = read_sample_file(path.as_path());
             match result {
                 Ok(content) => {
-                    println!("Tracker URL: {}\n Length: {}", content.announce, content.info.length);
+                    let hashHexed = calculate_info_hash(&content.info);
+                    println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hashHexed);
                 }
                 Err(err) => {
                     panic!("failed to parse torrent file. error: {}", err)
