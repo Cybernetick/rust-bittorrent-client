@@ -1,8 +1,10 @@
 use std::{env, vec};
-use std::fs::File;
+use anyhow;
 use std::hash::Hash;
 use std::io::{Read};
 use std::path::{Path, PathBuf};
+use anyhow::Context;
+use serde::de::Error;
 use serde_json;
 use serde_json::Number;
 use sha1::{Sha1, Digest};
@@ -36,10 +38,9 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
                     size += 1;
                     let safe_string = String::from_utf8(bytes.clone());
                     return match safe_string {
-                        Ok(formatted) => { (serde_json::Value::String(formatted), (delimiter_safe + size + 1))  }
+                        Ok(formatted) => { (serde_json::Value::String(formatted), (delimiter_safe + size + 1)) }
                         Err(_) => { (serde_json::Value::from(bytes), (delimiter_safe + size + 1)) }
-                    }
-
+                    };
                 }
             }
         }
@@ -64,7 +65,7 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
                 cursor += size;
                 result.insert(key.as_str().expect("cannot unwrap key").to_string(), value);
             }
-            (result.into(), cursor +1)
+            (result.into(), cursor + 1)
         }
         'e' => {
             (serde_json::Value::Null, 0)
@@ -75,42 +76,12 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     };
 }
 
-fn read_sample_file(mut file: &File) {
-    let mut file_content: Vec<u8> = vec![];
-    match file.read_to_end(&mut file_content) {
-        Ok(_) => {
-            let file_parsed = core::str::from_utf8(file_content.as_slice());
-            match file_parsed {
-                Ok(safe) => {
-                    let (result, _count) = decode_bencoded_string(&safe);
-                    parse_file(result)
-                }
-                Err(err) => {
-                    let limit = err.valid_up_to();
-                    let result = decode_bencoded_string(core::str::from_utf8(&file_content[..limit]).unwrap());
-                    println!("result is {}", result.0);
-                    eprintln!("error parsing file {}", err)
-                }
-            }
-        }
-        Err(body) => {
-            panic!("error happended while reading file: {}", body);
-        }
-    }
-}
-
-fn parse_file(input_string: serde_json::Value){
-    let metainfo = Meta::from(&input_string);
-    println!("Tracker URL: {}\n Length: {}", metainfo.announce, metainfo.info.length);
-    let encoded = serde_bencode::ser::to_bytes(&metainfo.info);
-    match encoded {
-        Ok(bytes_array) => {
-            let mut digest = Sha1::new();
-            digest.update(bytes_array);
-            let result = digest.finalize();
-            println!("Info Hash: {}", hex::encode(result))
-        }
-        Err(_) => {}
+fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
+    let torrent_file = std::fs::read(file).context("parse torrent file")?;
+    let parsed = serde_bencode::from_bytes(&torrent_file).context("parse torrent file");
+    match parsed {
+        Ok(Meta) => { Ok(Meta) }
+        Err(body) => { Err(body) }
     }
 }
 
@@ -131,13 +102,13 @@ fn main() {
                 env::current_dir().unwrap_or(PathBuf::new())
             };
             path = path.join(Path::new(&args[2]));
-            let file = File::open(path);
-            match file {
-                Ok(actual) => {
-                    read_sample_file(&actual);
+            let result = read_sample_file(path.as_path());
+            match result {
+                Ok(content) => {
+                    println!("Tracker URL: {}\n Length: {}", content.announce, content.info.length);
                 }
                 Err(err) => {
-                    panic!("error opening file - {}", err)
+                    panic!("failed to parse torrent file. error: {}", err)
                 }
             }
         }
