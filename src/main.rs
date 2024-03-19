@@ -8,9 +8,11 @@ use serde::de::Error;
 use serde_json;
 use serde_json::Number;
 use sha1::Digest;
+use clap::Parser;
 use crate::metainfo::Meta;
 
 mod metainfo;
+mod args;
 
 fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     return match encoded_string.chars().nth(0).expect("fail to create iterator over input string") {
@@ -84,22 +86,19 @@ fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let command = &args[1];
-    match command.as_str() {
-        "decode" => {
-            let encoded_value = &args[2];
-            let decoded_value = decode_bencoded_string(encoded_value);
+    let formatted = args::Args::parse();
+    match &formatted.command {
+        args::Command::Decode { input } => {
+            let decoded_value = decode_bencoded_string(input);
             println!("{}", decoded_value.0.to_string());
         }
-        "info" => {
+        args::Command::Info { file_path } => {
             let mut path = if env::args().any(|item| item == "--directory") {
                 PathBuf::from(env::args().last().unwrap())
             } else {
                 env::current_dir().unwrap_or(PathBuf::new())
             };
-            path = path.join(Path::new(&args[2]));
+            path = path.join(Path::new(file_path));
             let result = read_sample_file(path.as_path());
             match result {
                 Ok(content) => {
@@ -111,7 +110,7 @@ fn main() {
             }
         }
         _ => {
-            panic!("unknown command provided: {}", command)
+            panic!("unknown command provided: {:?}", env::args().collect::<Vec<String>>())
         }
     }
 }
