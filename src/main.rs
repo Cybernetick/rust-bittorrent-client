@@ -29,8 +29,6 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
                     let key = encoded_string[..delimiter_safe].parse::<usize>().expect("unable to parse key as digit");
                     let mut bytes: Vec<u8> = vec![];
                     let mut size = 0;
-                    //iterating over chars since the "pieces" key contains non-utf8 characters, so we cannot convert result into String right away.
-                    //non-utf8 characters have different size, so need to pay attention to char_indices value when iterating and counting offset of "handled" string
                     let _ = &encoded_string[delimiter_safe + 1..].char_indices().take(key).for_each(|item| {
                         bytes.push(item.1 as u8);
                         size = item.0
