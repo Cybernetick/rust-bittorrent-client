@@ -1,4 +1,3 @@
-#![allow(unused_variables, dead_code)]
 use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 
@@ -19,12 +18,12 @@ pub struct Info {
 
 impl Display for Meta {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(announce: {}, info: )", self.announce)
+        write!(f, "(announce: {}, info: {})", self.announce, self.info)
     }
 }
 
 impl Display for Info {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "lenght: {}, name: {}, pieces length: {}", self.length, self.name, self.piece_length)
+        write!(f, "length: {}, name: {}, pieces length: {}", self.length, self.name, self.piece_length)
     }
 }

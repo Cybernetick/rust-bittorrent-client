@@ -7,7 +7,7 @@ use anyhow::Context;
 use serde::de::Error;
 use serde_json;
 use serde_json::Number;
-use sha1::{Sha1, Digest};
+use sha1::Digest;
 use crate::metainfo::Meta;
 
 mod metainfo;
