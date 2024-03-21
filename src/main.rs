@@ -89,7 +89,11 @@ fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
 fn calculate_info_hash(info: &metainfo::Info) -> String {
     let encoded = serde_bencode::to_bytes(info).expect("failed to serialize info");
 
-    let output = Sha1::digest(&encoded);
+    return calculate_hash_hexed(&encoded)
+}
+
+fn calculate_hash_hexed(input: &Vec<u8>) -> String {
+    let output = Sha1::digest(input);
     base16::encode_lower(&output)
 }
 
@@ -110,8 +114,10 @@ fn main() {
             let result = read_sample_file(path.as_path());
             match result {
                 Ok(content) => {
-                    let hashHexed = calculate_info_hash(&content.info);
-                    println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hashHexed);
+                    let hash_hexed = calculate_info_hash(&content.info);
+                    println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hash_hexed);
+                    println!("Piece Length: {}", content.info.piece_length);
+                    content.info.pieces.chunks_exact(20).for_each(|chunk| println!("{}", calculate_hash_hexed(&chunk.to_vec())))
                 }
                 Err(err) => {
                     panic!("failed to parse torrent file. error: {}", err)
