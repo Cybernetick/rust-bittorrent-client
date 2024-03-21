@@ -1,15 +1,15 @@
 use std::{env, vec};
-use anyhow;
 use std::path::{Path, PathBuf};
-use anyhow::Context;
+use anyhow::{anyhow, Error};
 use serde_json;
 use serde_json::Number;
-use sha1::{Digest, Sha1};
 use clap::Parser;
 use crate::metainfo::Meta;
+use crate::tracker::tracker::connect_to_tracker;
 
 mod metainfo;
 mod args;
+mod tracker;
 
 fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     return match encoded_string.chars().nth(0).expect("fail to create iterator over input string") {
@@ -73,27 +73,8 @@ fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     };
 }
 
-fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
-    let torrent_file = std::fs::read(file).context("parse torrent file")?;
-    let parsed = serde_bencode::from_bytes(&torrent_file).context("parse torrent file");
-    match parsed {
-        Ok(meta) => { Ok(meta) }
-        Err(body) => { Err(body) }
-    }
-}
-
-fn calculate_info_hash(info: &metainfo::Info) -> String {
-    let encoded = serde_bencode::to_bytes(info).expect("failed to serialize info");
-
-    return calculate_hash_hexed(&encoded)
-}
-
-fn calculate_hash_hexed(input: &Vec<u8>) -> String {
-    let output = Sha1::digest(input);
-    base16::encode_lower(&output)
-}
-
-fn main() {
+#[tokio::main]
+async fn main() {
     let formatted = args::Args::parse();
     match &formatted.command {
         args::Command::Decode { input } => {
@@ -101,16 +82,10 @@ fn main() {
             println!("{}", decoded_value.0.to_string());
         }
         args::Command::Info { file_path } => {
-            let mut path = if env::args().any(|item| item == "--directory") {
-                PathBuf::from(env::args().last().unwrap())
-            } else {
-                env::current_dir().unwrap_or(PathBuf::new())
-            };
-            path = path.join(Path::new(file_path));
-            let result = read_sample_file(path.as_path());
+            let result = read_meta_from_args_filepath(file_path);
             match result {
                 Ok(content) => {
-                    let hash_hexed = calculate_info_hash(&content.info);
+                    let hash_hexed = content.calculate_info_hash_hexed();
                     println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hash_hexed);
                     println!("Piece Length: {}", content.info.piece_length);
                     let mut iterator = content.info.pieces.chunks_exact(20);
@@ -124,5 +99,33 @@ fn main() {
                 }
             }
         }
+        args::Command::Peers { file_path } => {
+            use tracker::tracker::connect_to_tracker;
+            let result = read_meta_from_args_filepath(file_path);
+            match result {
+                Ok(meta_data) => {
+                    connect_to_tracker(meta_data).await;
+                }
+                Err(err) => {
+                    panic!("failed to parse torrent file. error: {}", err)
+                }
+            }
+
+        }
     }
+}
+
+fn get_current_dir_path() -> PathBuf {
+    let mut path = if env::args().any(|item| item == "--directory") {
+        PathBuf::from(env::args().last().unwrap())
+    } else {
+        env::current_dir().unwrap_or(PathBuf::new())
+    };
+    path
+}
+
+fn read_meta_from_args_filepath(file_name: &PathBuf) -> Result<Meta, anyhow::Error> {
+    let mut path = get_current_dir_path();
+    path = path.join(Path::new(file_name));
+    Meta::read_from_file(&path)
 }
