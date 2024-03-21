@@ -117,7 +117,11 @@ fn main() {
                     let hash_hexed = calculate_info_hash(&content.info);
                     println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hash_hexed);
                     println!("Piece Length: {}", content.info.piece_length);
-                    content.info.pieces.chunks_exact(20).for_each(|chunk| println!("{}", calculate_hash_hexed(&chunk.to_vec())))
+                    let mut iterator = content.info.pieces.chunks_exact(20);
+                    iterator.clone().for_each(|chunk| println!("{}", calculate_hash_hexed(&chunk.to_vec())));
+                    if !iterator.next().is_none() {
+                        println!("{}", calculate_hash_hexed(&iterator.remainder().to_vec()))
+                    }
                 }
                 Err(err) => {
                     panic!("failed to parse torrent file. error: {}", err)
