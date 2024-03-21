@@ -1,15 +1,11 @@
 use std::{env, vec};
 use anyhow;
-use std::hash::Hash;
-use std::io::{Read};
 use std::path::{Path, PathBuf};
 use anyhow::Context;
-use serde::de::Error;
 use serde_json;
 use serde_json::Number;
 use sha1::{Digest, Sha1};
 use clap::Parser;
-use serde::de::Unexpected::Str;
 use crate::metainfo::Meta;
 
 mod metainfo;
@@ -81,7 +77,7 @@ fn read_sample_file(file: &Path) -> anyhow::Result<Meta, anyhow::Error> {
     let torrent_file = std::fs::read(file).context("parse torrent file")?;
     let parsed = serde_bencode::from_bytes(&torrent_file).context("parse torrent file");
     match parsed {
-        Ok(Meta) => { Ok(Meta) }
+        Ok(meta) => { Ok(meta) }
         Err(body) => { Err(body) }
     }
 }
@@ -118,18 +114,15 @@ fn main() {
                     println!("Tracker URL: {}\n Length: {}\n Info Hash: {}", content.announce, content.info.length, hash_hexed);
                     println!("Piece Length: {}", content.info.piece_length);
                     let mut iterator = content.info.pieces.chunks_exact(20);
-                    iterator.clone().for_each(|chunk| println!("{}", calculate_hash_hexed(&chunk.to_vec())));
+                    iterator.clone().for_each(|chunk| println!("{}", base16::encode_lower(&chunk.to_vec())));
                     if !iterator.next().is_none() {
-                        println!("{}", calculate_hash_hexed(&iterator.remainder().to_vec()))
+                        println!("{}", base16::encode_lower(&iterator.remainder().to_vec()))
                     }
                 }
                 Err(err) => {
                     panic!("failed to parse torrent file. error: {}", err)
                 }
             }
-        }
-        _ => {
-            panic!("unknown command provided: {:?}", env::args().collect::<Vec<String>>())
         }
     }
 }
