@@ -15,7 +15,7 @@ struct PeersVisitor;
 #[derive(Debug)]
 pub struct Peer {
     pub ip_address: IpAddr,
-    pub port: String,
+    pub port: u16,
 }
 
 impl<'de> Visitor<'de> for PeersVisitor {
@@ -27,10 +27,9 @@ impl<'de> Visitor<'de> for PeersVisitor {
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E> where E: Error {
         let items: Vec<Peer> = v.chunks_exact(6).map(|chunk| {
-            let port_string = format!("{}{}", chunk[4], chunk[5]);
             Peer {
                 ip_address: IpAddr::from(Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])),
-                port: port_string,
+                port: u16::from_be_bytes([chunk[4], chunk[5]]),
             }
         }).collect();
         Ok(Peers {
