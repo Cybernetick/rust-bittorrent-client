@@ -10,6 +10,7 @@ use crate::tracker::tracker::connect_to_tracker;
 mod metainfo;
 mod args;
 mod tracker;
+mod peers;
 
 fn decode_bencoded_string(encoded_string: &str) -> (serde_json::Value, usize) {
     return match encoded_string.chars().nth(0).expect("fail to create iterator over input string") {
