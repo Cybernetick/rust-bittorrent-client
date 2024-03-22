@@ -1,9 +1,8 @@
 pub mod tracker {
-    use reqwest::{Client, Error, Method, Response};
+    use reqwest::Client;
     use serde::{Deserialize, Serialize};
     use crate::metainfo::Meta;
-    use crate::peers::{Peer, Peers};
-    // use crate::peers::Peers;
+    use crate::peers::Peers;
 
     // const PEER_ID: String = String::from("00112233445566778899");
     pub async fn connect_to_tracker(meta_data: Meta) {

@@ -33,7 +33,6 @@ impl<'de> Visitor<'de> for PeersVisitor {
                 port: port_string,
             }
         }).collect();
-        println!("finished custom deserialize for {}", items.len());
         Ok(Peers {
             peers: items
         })
