@@ -1,9 +1,7 @@
 use std::fmt::Formatter;
 use std::net::{IpAddr, Ipv4Addr};
-use bytes::Buf;
 use serde::de::{Error, Visitor};
 use serde::{Deserialize, Deserializer};
-use tokio::io::AsyncReadExt;
 
 #[derive(Debug)]
 pub struct Peers {

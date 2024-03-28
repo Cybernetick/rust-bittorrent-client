@@ -1,11 +1,10 @@
 use std::{env, vec};
+use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
-use anyhow::{anyhow, Error};
 use serde_json;
 use serde_json::Number;
 use clap::Parser;
 use crate::metainfo::Meta;
-use crate::tracker::tracker::connect_to_tracker;
 
 mod metainfo;
 mod args;
@@ -111,13 +110,32 @@ async fn main() {
                     panic!("failed to parse torrent file. error: {}", err)
                 }
             }
+        }
 
+        args::Command::Handshake { file_path, peer_address } => {
+            use tracker::tracker::connect_to_peer;
+            let file = read_meta_from_args_filepath(file_path);
+            match file {
+                Ok(meta_data) => {
+                    let mut address_iterator = peer_address.as_str().to_socket_addrs().expect("invalid address supplied");
+                    let address = address_iterator.next();
+                    match address {
+                        None => {
+                            eprintln!("address iterator is empty")
+                        }
+                        Some(addr) => {
+                            connect_to_peer(addr.ip(), addr.port(), meta_data).await;
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
         }
     }
 }
 
 fn get_current_dir_path() -> PathBuf {
-    let mut path = if env::args().any(|item| item == "--directory") {
+    let path = if env::args().any(|item| item == "--directory") {
         PathBuf::from(env::args().last().unwrap())
     } else {
         env::current_dir().unwrap_or(PathBuf::new())

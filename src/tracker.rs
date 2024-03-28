@@ -1,6 +1,10 @@
 pub mod tracker {
+    use std::net::{IpAddr, SocketAddr};
+    use bytes::{Buf, BufMut};
     use reqwest::Client;
     use serde::{Deserialize, Serialize};
+    use tokio::io::{AsyncWriteExt, Interest};
+    use tokio::net::TcpStream;
     use crate::metainfo::Meta;
     use crate::peers::Peers;
 
@@ -39,6 +43,48 @@ pub mod tracker {
             }
             Err(error) => {
                 eprintln!("error sending the request: {}", error)
+            }
+        }
+    }
+
+    pub async fn connect_to_peer(peer_ip: IpAddr, port: u16, meta_data: Meta) {
+        let stream = TcpStream::connect(SocketAddr::new(peer_ip, port)).await;
+        match stream {
+            Ok(mut safe_stream) => {
+                let mut buf: Vec<u8> = Vec::new();
+                buf.push(19);
+                buf.put_slice("BitTorrent protocol".as_bytes());
+                let reserve: [u8; 8] = [0; 8];
+                buf.put_slice(&reserve);
+                buf.put_slice(meta_data.calculate_info_hash().as_slice());
+                buf.put_slice("00112233445566778899".as_bytes());
+
+                let write_result = safe_stream.write_all(buf.as_slice()).await;
+                match write_result {
+                    Ok(_) => {
+                        let ready_to_read = safe_stream.ready(Interest::READABLE).await;
+                        match ready_to_read {
+                            Ok(_) => {
+                                let mut response_buf: [u8; 1024] = [0; 1024];
+                                let read_size = safe_stream.try_read(&mut response_buf).expect("handshake happened");
+
+                                let peer_hash = &response_buf.take(read_size).into_inner()[read_size - 20..read_size];
+                                println!("Peer ID: {}", base16::encode_lower(peer_hash))
+                            }
+                            Err(err) => {
+                                eprintln!("did not receive READABLE state of stream. error: {}", err);
+                            }
+                        }
+
+                    }
+                    Err(err) => {
+                        eprintln!("error writing handshake into stream: {}", err);
+                    }
+                }
+                //
+            }
+            Err(err) => {
+                eprintln!("error handshaking {}", err)
             }
         }
     }
