@@ -1,9 +1,6 @@
 use std::{env, vec};
-use std::io::Error;
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use clap::error::ErrorKind;
 use serde_json;
 use serde_json::Number;
 use clap::Parser;
@@ -141,9 +138,9 @@ async fn main() {
 
             match file {
                 Ok(meta_data) => {
-                    download_piece(piece_file_path, meta_data).await.expect("failed downloading")
+                    download_piece(piece_file_path, meta_data, piece_index).await.expect("failed downloading");
                 }
-                Err(err) => {
+                Err(_err) => {
                 }
             }
         }

@@ -3,10 +3,10 @@ pub mod tracker {
     use std::net::{IpAddr, SocketAddr};
     use std::path::PathBuf;
 
-    use bytes::{Buf, BufMut, Bytes, BytesMut};
+    use bytes::{Buf, BufMut, BytesMut};
     use reqwest::{Client};
     use serde::{Deserialize, Serialize};
-    use sha1::{Sha1, Digest};
+    use sha1::Digest;
     use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
     use tokio::net::TcpStream;
     use crate::metainfo::Meta;
@@ -81,7 +81,7 @@ pub mod tracker {
         }
     }
 
-    pub async fn download_piece(piece_file_path: &PathBuf, meta_data: Meta) -> Result<(), Error> {
+    pub async fn download_piece(piece_file_path: &PathBuf, meta_data: Meta, piece_index: &usize) -> Result<(), Error> {
         let peers = connect_to_tracker(&meta_data).await?;
         if !peers.peers.is_empty() {
             let stream = TcpStream::connect(SocketAddr::new(peers.peers[0].ip_address, peers.peers[0].port)).await;
@@ -131,15 +131,13 @@ pub mod tracker {
                         } else {
                             MAX_BLOCK_SIZE
                         };
-                        let request = Request::new(1, (block * block_size) as u32, block_size as u32);
+                        let request = Request::new(*piece_index as u32, (block * block_size) as u32, block_size as u32);
                         connection.write_frame(PeerMessage {
                             tag: PeerMessageTag::Request,
                             payload: request.as_bytes_mute(),
                         }).await?;
-                        println!("block {} requested", block);
                         let piece = connection.read_frame().await.expect("peer should respond with PIECE")
                             .ok_or(Error::new(ErrorKind::InvalidData, "peer not responded with piece"))?;
-                        println!("block {} received", block);
 
                         assert_eq!(piece.tag, PeerMessageTag::Piece);
                         data.extend_from_slice(&piece.payload[8..]);
@@ -147,6 +145,7 @@ pub mod tracker {
                     assert_eq!(data.len(), meta_data.info.piece_length);
 
                     tokio::fs::write(piece_file_path, data).await?;
+                    println!("Piece {} downloaded to {:?}", piece_index, piece_file_path);
                     Ok(())
                 }
                 Err(_) => {
@@ -197,10 +196,6 @@ pub mod tracker {
             }
         }
 
-        pub fn close(&mut self) {
-            let _ = self.stream.shutdown();
-        }
-
         pub async fn read_frame(&mut self) -> Result<Option<PeerMessage>, Error> {
             loop {
                 if let Some(frame) = self.parse_frame()? {
@@ -227,7 +222,6 @@ pub mod tracker {
             }
 
             let mut message_length = [0u8; 4];
-            // self.buffer.copy_to_slice(&mut message_length);
             message_length.copy_from_slice(&self.buffer[0..4]);
             let message_length = u32::from_be_bytes(message_length) as usize;
 
@@ -260,8 +254,6 @@ pub mod tracker {
                 vec![]
             };
             self.buffer.advance(message_length + 4);
-            // self.buffer.reserve(message_length - 1);
-            println!("returning message of size {}, with tag {:?}", data.len(), tag);
             Ok(Some(PeerMessage { tag, payload: data.to_vec() }))
         }
 
