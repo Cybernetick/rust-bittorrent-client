@@ -1,6 +1,9 @@
 use std::{env, vec};
+use std::io::Error;
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use clap::error::ErrorKind;
 use serde_json;
 use serde_json::Number;
 use clap::Parser;
@@ -104,7 +107,7 @@ async fn main() {
             let result = read_meta_from_args_filepath(file_path);
             match result {
                 Ok(meta_data) => {
-                    connect_to_tracker(meta_data).await;
+                    connect_to_tracker(&meta_data).await.expect("Failed to load peers list for tracker");
                 }
                 Err(err) => {
                     panic!("failed to parse torrent file. error: {}", err)
@@ -124,11 +127,24 @@ async fn main() {
                             eprintln!("address iterator is empty")
                         }
                         Some(addr) => {
-                            connect_to_peer(addr.ip(), addr.port(), meta_data).await;
+                            connect_to_peer(addr.ip(), addr.port(), &meta_data).await.expect("handshake failed");
                         }
                     }
                 }
                 Err(_) => {}
+            }
+        }
+
+        args::Command::DownloadPiece { piece_file_path, torrent_file_path, piece_index } => {
+            use tracker::tracker::download_piece;
+            let file = read_meta_from_args_filepath(torrent_file_path);
+
+            match file {
+                Ok(meta_data) => {
+                    download_piece(piece_file_path, meta_data).await.expect("failed downloading")
+                }
+                Err(err) => {
+                }
             }
         }
     }
