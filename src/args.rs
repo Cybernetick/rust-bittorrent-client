@@ -15,8 +15,9 @@ pub enum Command {
     Peers { file_path: PathBuf },
     Handshake { file_path: PathBuf, peer_address: String },
     DownloadPiece {
-        piece_file_path: PathBuf,
-        torrent_file_path: PathBuf,
-        piece_index: usize,
+        #[arg(short)]
+        output: PathBuf,
+        torrent: PathBuf,
+        piece: usize,
     },
 }

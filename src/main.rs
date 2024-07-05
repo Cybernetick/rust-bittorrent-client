@@ -132,7 +132,7 @@ async fn main() {
             }
         }
 
-        args::Command::DownloadPiece { piece_file_path, torrent_file_path, piece_index } => {
+        args::Command::DownloadPiece { output: piece_file_path, torrent: torrent_file_path, piece: piece_index } => {
             use tracker::tracker::download_piece;
             let file = read_meta_from_args_filepath(torrent_file_path);
 

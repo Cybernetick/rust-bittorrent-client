@@ -1,12 +1,11 @@
 pub mod tracker {
-    use std::io::{Error, ErrorKind, Read};
+    use std::io::{Error, ErrorKind};
     use std::net::{IpAddr, SocketAddr};
     use std::path::PathBuf;
 
     use bytes::{Buf, BufMut, BytesMut};
     use reqwest::{Client};
     use serde::{Deserialize, Serialize};
-    use sha1::Digest;
     use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
     use tokio::net::TcpStream;
     use crate::metainfo::Meta;
@@ -66,7 +65,7 @@ pub mod tracker {
                 buf.put_slice(meta_data.calculate_info_hash().as_slice());
                 buf.put_slice("00112233445566778899".as_bytes());
 
-                let write = safe_stream.write_all(buf.as_slice()).await?;
+                safe_stream.write_all(buf.as_slice()).await?;
                 let mut response_buf: Vec<u8> = vec![];
                 response_buf.reserve_exact(buf.len());
                 safe_stream.read_exact(&mut response_buf).await?;
@@ -95,7 +94,7 @@ pub mod tracker {
                     buf.put_slice(meta_data.calculate_info_hash().as_slice());
                     buf.put_slice("00112233445566778899".as_bytes());
 
-                    let write = safe_stream.write_all(buf.as_slice()).await?;
+                    safe_stream.write_all(buf.as_slice()).await?;
                     loop {
                         let ready_to_read = safe_stream.ready(Interest::READABLE).await?;
                         if ready_to_read.is_readable() {
