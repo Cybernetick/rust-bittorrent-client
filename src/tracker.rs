@@ -53,7 +53,7 @@ pub mod tracker {
         }
     }
 
-    pub async fn connect_to_peer(peer_ip: IpAddr, port: u16, meta_data: &Meta) -> Result<TcpStream, Error> {
+    pub async fn handshake_with_peer(peer_ip: IpAddr, port: u16, meta_data: &Meta) -> Result<TcpStream, Error> {
         let stream = TcpStream::connect(SocketAddr::new(peer_ip, port)).await;
         match stream {
             Ok(mut safe_stream) => {
@@ -117,7 +117,7 @@ pub mod tracker {
                         .ok_or(Error::new(ErrorKind::InvalidData, "peer not responded with UNCHOKE"))?;
 
                     let block_count = (meta_data.info.piece_length + (MAX_BLOCK_SIZE - 1)) / MAX_BLOCK_SIZE;
-                    let mut data: Vec<u8> = vec![];
+                    let mut result: Vec<u8> = vec![];
                     for block in 0..block_count {
                         let block_size : usize = if block == block_count - 1 {
                             let remainder = meta_data.info.piece_length % MAX_BLOCK_SIZE;
@@ -139,12 +139,10 @@ pub mod tracker {
                             .ok_or(Error::new(ErrorKind::InvalidData, "peer not responded with piece"))?;
 
                         assert_eq!(piece.tag, PeerMessageTag::Piece);
-                        data.extend_from_slice(&piece.payload[8..]);
+                        result.extend_from_slice(&piece.payload[8..]);
                     }
-                    assert_eq!(data.len(), meta_data.info.piece_length);
-
-                    tokio::fs::write(piece_file_path, data).await?;
-                    println!("Piece {} downloaded to {:?}", piece_index, piece_file_path);
+                    assert_eq!(result.len(), meta_data.info.piece_length);
+                    tokio::fs::write(piece_file_path, result).await?;
                     Ok(())
                 }
                 Err(_) => {
@@ -234,6 +232,7 @@ pub mod tracker {
             }
 
             let message_tag = self.buffer[4];
+
             let tag = match message_tag {
                 0 => PeerMessageTag::Heartbeat,
                 1 => PeerMessageTag::Unchoke,
@@ -245,8 +244,6 @@ pub mod tracker {
                     return Err(Error::new(ErrorKind::InvalidData, format!("unknown message tag received {}", tag)));
                 }
             };
-
-
             let data = if self.buffer.len() >= message_length - 1 {
                 self.buffer[5..4 + message_length].to_vec()
             } else {

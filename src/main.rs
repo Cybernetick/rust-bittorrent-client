@@ -113,7 +113,7 @@ async fn main() {
         }
 
         args::Command::Handshake { file_path, peer_address } => {
-            use tracker::tracker::connect_to_peer;
+            use tracker::tracker::handshake_with_peer;
             let file = read_meta_from_args_filepath(file_path);
             match file {
                 Ok(meta_data) => {
@@ -124,7 +124,7 @@ async fn main() {
                             eprintln!("address iterator is empty")
                         }
                         Some(addr) => {
-                            connect_to_peer(addr.ip(), addr.port(), &meta_data).await.expect("handshake failed");
+                            handshake_with_peer(addr.ip(), addr.port(), &meta_data).await.expect("handshake failed");
                         }
                     }
                 }
